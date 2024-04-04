@@ -9,6 +9,7 @@ This is the submission for the REACT2024 competition from [AIS lab, Ritsumeikan 
 - [Prequisites](#prequisites)
 - [Installation](#installation)
 - [Download checkpoints, external and dataset](#download-checkpoints-external-and-dataset)
+- [Run the demo](#run-the-demo)
 - [Model input and output](#model-input-and-output)
 - [Dataloader](#dataloader)
 - [Training](#training)
@@ -52,7 +53,7 @@ And on the test set, it is as follows:
 | Ours                         | 0.3190 |	82.0288 |	0.1165 |	0.0344 |	0.1162	| 34.6685 |	43.0918|
 
 ### Output comparison with Learning2Listen's baseline:
-<video src="submit_videos/comparison_with_learning2listen.mp4" controls></video>
+![Output comparison with Learning2Listen's baseline](https://github.com/ais-lab/FaceAIS_REACT24/blob/master/submit_videos/comparison_with_learning2listen.mp4)
 
 ## Prequisites
 
@@ -89,6 +90,13 @@ We noticed that the installation of PyTorch-3D with CUDA is not straightforward,
 1. Download the [checkpoints and external tool](https://drive.google.com/drive/folders/1hhBThohHAdDT1shZPyxzmsnMSEoI6J07?usp=sharing) and put it to the checkpoint and external folder separately.
 2. Please refer to the [REACT2024](https://sites.google.com/cam.ac.uk/react2024/home) to download the dataset.
 3. You can run the demo without the dataset.
+
+## Run the demo
+
+We provide a simple live-demo for this model. The demo will take the speaker's voice and face as input and generate the listener's face and emotion as output. The demo will use the pre-trained model in the checkpoint folder to generate the output.
+
+`bash run_demo.bash`
+
 
 ## Model input and output
 
