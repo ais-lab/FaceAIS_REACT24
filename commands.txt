@@ -1,0 +1,10 @@
+The list of commands is as followed:
+
+Train and test the face_tokenizer
+python p1_face_tokenizer.py --run_name "face_tokenizer" --quantize_type "fsq" --output_dir "output/face_tokenizer" --dataset_path "/home/usr/react2024/data"
+
+Train the reaction predictor
+python p2_react_predictor.py --output_dir output --tokenizer_checkpoint checkpoint/face_tokenizer_epoch=185-step=37200.ckpt --dataset_path /home/usr/react2024/data
+
+Test the checkpoint
+python p2_react_predictor.py --test --test_checkpoint checkpoint/react_predictor_epoch=91-step=9200.ckpt --tokenizer_checkpoint checkpoint/face_tokenizer_epoch=185-step=37200.ckpt --output_dir output --dataset_path /home/usr/react2024/data

@@ -1,0 +1,26 @@
+lightning
+numpy
+opencv_contrib_python
+opencv_python
+opencv_python_headless
+pandas
+pillow
+scikit_image
+scikit_video
+scipy
+soundfile
+torch
+torchaudio
+torchvision
+einops
+tqdm
+tslearn
+omegaconf
+PyYAML
+wandb
+torch-fidelity
+timm
+fairseq
+librosa
+transformers
+# git+https://github.com/facebookresearch/pytorch3d.git@stable
