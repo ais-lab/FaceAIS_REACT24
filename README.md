@@ -49,7 +49,7 @@ And on the test set, it is as follows:
 |                              | Appropriateness |        | Diversity |        |        | Realism | Synchrony |
 |------------------------------|:---------------:|:------:|:---------:|:------:|:------:|:-------:|:---------:|
 |                              | FRC             | FRD    | FRDvs     | FRVar  | FRDiv  | FRRea   | FRSyn     |
-| Ours                         | 0.3190 |	82.0288 |	0.1165 |	0.0344 |	0.1162	| 116.25|	43.0918|
+| Ours                         | 0.3190 |	82.0288 |	0.1165 |	0.0344 |	0.1162	| 34.6685 |	43.0918|
 
 ### Output comparison with Learning2Listen's baseline:
 <video src="submit_videos/comparison_with_learning2listen.mp4" controls></video>
