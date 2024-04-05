@@ -266,13 +266,13 @@ def process_and_send_frames(
     speaker_face_memory, speaker_sound_memory, listernet_past_memory, send_socket, condition
 ):
     global in_mem
-    fps = 30
+    # fps = 30
 
     while True:
         # check = True
         # if in_mem != 31:
         #     check = False
-        time.sleep(1/fps)
+        time.sleep(0.5)
         
         num_sample_frame = 4
         selected_frames = []
@@ -288,13 +288,14 @@ def process_and_send_frames(
             selected_frames = random.sample(frames, num_sample_frame)
     
         for frame in selected_frames:
+            start = time.time()
+
             extract = preprocess_frame(frame)
             if extract is None:
                 continue
             # repeat the extracted 3dmm parameters to 32 frames
             extract = torch.cat([extract.unsqueeze(0)]*(32//num_sample_frame), dim=1)
             
-            start = time.time()
             speaker_face_memory.add(extract, p=32//num_sample_frame)    
             print(f"Preprocess frame time: {time.time()-start}")
         
