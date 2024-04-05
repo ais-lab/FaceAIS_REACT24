@@ -1,4 +1,5 @@
 import pickle
+import random
 import socket
 import struct
 from threading import Thread
@@ -7,6 +8,7 @@ import time
 import cv2
 import numpy as np
 import torch
+import torch.nn.functional as F
 from queue import Queue
 
 from demo.communicate import send_frame, receive_frame
@@ -134,6 +136,44 @@ class BlockMemory:
         self.memory = self.memory.to(device)
 
 
+def pad(seq, max_lenth, padding_value=0, side="right", has_features=False):
+    """
+    Pad a sequence with a given maximum length.
+
+    Args:
+        seq (torch.Tensor): The input sequence to be padded.
+        max_length (int): The maximum length of the padded sequence.
+        padding_value (int, optional): The value used for padding. Defaults to 0.
+
+    Returns:
+        torch.Tensor: The padded sequence.
+    """
+    time_dim = 1
+    if has_features:
+        seq = seq.transpose(1, 2)
+        time_dim = 2
+    if seq.size(time_dim) != max_lenth:
+        if side == "right":
+            seq = F.pad(
+                seq,
+                (0, max_lenth - seq.size(time_dim)),
+                mode="constant",
+                value=padding_value,
+            )
+        else:
+            seq = F.pad(
+                seq,
+                (max_lenth - seq.size(time_dim), 0),
+                mode="constant",
+                value=padding_value,
+            )
+    if has_features:
+        seq = seq.transpose(1, 2)
+
+    mask = seq != padding_value
+
+    return seq, mask
+
 frame_id = 0
 
 
@@ -141,33 +181,17 @@ def preprocess_frame(frame):
     # # Extract the 3DMM parameters from the frame
     # global speaker_3dmm_past
     global frame_id
-    print(f"Preprocess frame: {time.time()}")
     speaker_3dmm = extractor_3dmm.extract(frame, frame_id=frame_id)
     if speaker_3dmm is None:
         return None
 
-    # add batch dimension
-    # speaker_3dmm = speaker_3dmm.unsqueeze(0)
-
-    # # repeat the 3DMM parameters in time dim to match the block size of 32 in the tokenizer
-    # # speaker_3dmm = speaker_3dmm.repeat(1, 32, 1)
-
-    # speaker_3dmm_past = torch.cat([speaker_3dmm_past[:, 1:], speaker_3dmm], dim=1)
-
-    # speaker_token = face_tokenizer.model.tokenize(speaker_3dmm_past)
-
-    # speaker_token += 2
-
     frame_id += 1
 
-    # return speaker_token[:, 0].unsqueeze(0)
     return speaker_3dmm
 
 
 def preprocess_sound(sound):
-    print(f"Preprocess sound: {time.time()}")
     sound = np.frombuffer(sound, dtype=np.float32)
-    sound = wav2vec(sound_vector=sound, device="cuda")
 
     return sound
 
@@ -183,12 +207,10 @@ def predict(
     sound_mem = speaker_sound_memory
     listernet_past_mem = listernet_past_memory
     
-    # global cache_sp
-    # if cache_sp is None:
+
     speaker_face_3dmm = face_tokenizer.model.tokenize(face_3dmm_mem)
     speaker_face_3dmm += 2
-    #     cache_sp = speaker_face_3dmm
-    # else:
+
 
     logits, _ = react_predictor.model(
         sp_sound_idx=sound_mem,
@@ -228,7 +250,8 @@ def receive_frame_and_audio(client_socket, speaker_face_memory, speaker_sound_me
 
     while True:
         frame, audio = receive_frame(client_socket)
-        
+        if frame is None:
+            continue
         # print(f"Received frame: {time.time()}")
         
         in_mem += 1
@@ -243,31 +266,68 @@ def process_and_send_frames(
     speaker_face_memory, speaker_sound_memory, listernet_past_memory, send_socket, condition
 ):
     global in_mem
+    fps = 30
 
     while True:
+        # check = True
+        # if in_mem != 31:
+        #     check = False
+        time.sleep(1/fps)
         
-        if not frame_queue.empty():
-            frame = frame_queue.get()
-            audio = audio_queue.get()
+        num_sample_frame = 4
+        selected_frames = []
+        frames = []
+        while not frame_queue.empty():
             
-            speaker_face_memory.add(preprocess_frame(frame).unsqueeze(0))    
-            speaker_sound_memory.add(preprocess_sound(audio))
-
-        if in_mem != 0:
-            continue
-        
+            # evenly sample 4 frames from frame queue then render them and repeat it to 32 frames
+            frame = frame_queue.get()
+            frames.append(frame)
+            
+            
+        if len(frames) > num_sample_frame:
+            selected_frames = random.sample(frames, num_sample_frame)
+    
+        for frame in selected_frames:
+            extract = preprocess_frame(frame)
+            if extract is None:
+                continue
+            # repeat the extracted 3dmm parameters to 32 frames
+            extract = torch.cat([extract.unsqueeze(0)]*(32//num_sample_frame), dim=1)
+            
+            start = time.time()
+            speaker_face_memory.add(extract, p=32//num_sample_frame)    
+            print(f"Preprocess frame time: {time.time()-start}")
         
         face_3dmm_mem = speaker_face_memory.get()
-        sound_mem = speaker_sound_memory.get()
-        listernet_past_mem = listernet_past_memory.get()
+        
+        start = time.time()
+        sound = []
+        while not audio_queue.empty():
+            audio = audio_queue.get()
+            sound_ = np.frombuffer(audio, dtype=np.float32)
+            sound.append(sound_)
+        
+        sound = np.concatenate(sound)
+        
+        sound_mem_vector = wav2vec(sound_vector=sound, device="cuda")
+        sound_mem_vector = sound_mem_vector[:,-512:]
+        sound_mem_vector, sound_mask = pad(sound_mem_vector, 512, side="left", has_features=True)
 
+        print(f"Preprocess sound time: {time.time()-start}")
+        
+        
+        start = time.time()
+        listernet_past_mem = listernet_past_memory.get()
         react_3dmm, pred_idx = predict(
-            face_3dmm_mem, sound_mem, listernet_past_mem
+            face_3dmm_mem, sound_mem_vector, listernet_past_mem
         )
+        print(f"Predict time: {time.time()-start}")
         
         listernet_past_memory.add(pred_idx[:,:32], p=32)
-
+        
+        start = time.time()
         rendered_frames = render_3dmm(react_3dmm[:, :32].detach())
+        print(f"Render time: {time.time()-start}")
 
         send_frame(rendered_frames, send_socket)
 

@@ -83,13 +83,19 @@ def capture_and_scale_image_from_webcam(fps, width, height):
             # send the frame to demo_server.py via socket
             send_frame((frame,audio_data), client_socket)
 
+computed_fps = 30
 def receive_and_add_frame_to_queue():
     global revc_frame
+    global computed_fps
+    start = time.time()
     while True:
         # Receive the frame from the server
         processed_frames = receive_frame(client_socket_1)
         if processed_frames is not None:
             print(f"Received frame: {time.time()}")
+            computed_fps = len(processed_frames)/(time.time()-start)
+            # print(f"FPS: {computed_fps}")
+            start = time.time()
             for frame in processed_frames:
                 revc_frame.put(frame)
 
@@ -104,14 +110,15 @@ if __name__ == "__main__":
     Thread(target=receive_and_add_frame_to_queue).start()
     
     # display the processed frame with an fps
-    fps = 30
     while True:
         if not revc_frame.empty():
             cv2.imshow("Processed Frame", revc_frame.get())
+            print(f'computed_fps: {computed_fps}')
+            time.sleep(1/computed_fps)
+            
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 break
-        
-        time.sleep(1/fps)
+            
 
     cv2.destroyAllWindows()
 
