@@ -20,8 +20,8 @@ from render import Extractor3DMM
 from model.wav2vec2_feature_extractor import Wav2Vec2ForFeatureExtraction
 
 SERVER_IP = "192.168.101.26"
-SERVER_PORT = ['6000', '7000']
-SERVER_PORT_1 = ['6001', '7001']
+SERVER_PORT = ["6000", "7000"]
+SERVER_PORT_1 = ["6001", "7001"]
 # Create a socket and bind it to the server IP and port
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server_socket_1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -36,10 +36,10 @@ while True:
             break
         except:
             pass
-        
+
     if check:
         break
-    
+
 while True:
     check = False
     for port in SERVER_PORT_1:
@@ -50,7 +50,7 @@ while True:
             break
         except:
             pass
-        
+
     if check:
         break
 
@@ -174,6 +174,7 @@ def pad(seq, max_lenth, padding_value=0, side="right", has_features=False):
 
     return seq, mask
 
+
 frame_id = 0
 
 
@@ -195,24 +196,25 @@ def preprocess_sound(sound):
 
     return sound
 
-cache_lt = torch.zeros(1, 64, 58, device="cuda")
+
+cache_lt = torch.zeros(1, 64, 58 - 22, device="cuda")
+
 
 def predict(
     speaker_face_memory,
     speaker_sound_memory,
     listernet_past_memory,
+    smooth_window=4
 ):
-    
+
     global cache_lt
 
     face_3dmm_mem = speaker_face_memory
     sound_mem = speaker_sound_memory
     listernet_past_mem = listernet_past_memory
-    
 
     speaker_face_3dmm = face_tokenizer.model.tokenize(face_3dmm_mem)
     speaker_face_3dmm += 2
-
 
     logits, _ = react_predictor.model(
         sp_sound_idx=sound_mem,
@@ -225,20 +227,26 @@ def predict(
     sample_idx -= 2
 
     decode_3dmm, _ = face_tokenizer.model.get_3dmm_emotion(sample_idx)
-    
+
     shape = decode_3dmm.shape
-    
+
+    # smoothing the 3dmm parameters
+
     cache_lt = cache_lt[:, 32:]
-    cache_lt = torch.cat([cache_lt, decode_3dmm], dim=1)
-    # smooth 3dmm
-    # 1, t, d 
-    
+    cache_lt = torch.cat([cache_lt, decode_3dmm[:, :, 22:]], dim=1)
+
     cumsum_vec = torch.cumsum(cache_lt, dim=1)
-    ma_vec = (cumsum_vec[:,4:] - cumsum_vec[:,:-4]) / 4
+    ma_vec = (
+        cumsum_vec[
+            :,
+            smooth_window:,
+        ]
+        - cumsum_vec[:, :-smooth_window]
+    ) / smooth_window
 
-    # print(f"ma_vec: {ma_vec}")
+    decode_3dmm[:, :, 22:] = ma_vec[:, -32:]
 
-    return ma_vec[:,-32:].reshape(shape), sample_idx
+    return decode_3dmm, sample_idx
 
 
 def render_3dmm(decode_3dmm):
@@ -259,7 +267,10 @@ in_mem = 0
 frame_queue = Queue()
 audio_queue = Queue()
 
-def receive_frame_and_audio(client_socket, speaker_face_memory, speaker_sound_memory, condition):
+
+def receive_frame_and_audio(
+    client_socket, speaker_face_memory, speaker_sound_memory, condition
+):
     global in_mem
 
     while True:
@@ -267,17 +278,20 @@ def receive_frame_and_audio(client_socket, speaker_face_memory, speaker_sound_me
         if frame is None:
             continue
         # print(f"Received frame: {time.time()}")
-        
+
         in_mem += 1
         in_mem %= 32
         # print(frame.shape)
         frame_queue.put(frame)
         audio_queue.put(audio)
-        
 
 
 def process_and_send_frames(
-    speaker_face_memory, speaker_sound_memory, listernet_past_memory, send_socket, condition
+    speaker_face_memory,
+    speaker_sound_memory,
+    listernet_past_memory,
+    send_socket,
+    condition,
 ):
     global in_mem
     # fps = 30
@@ -286,21 +300,21 @@ def process_and_send_frames(
         # check = True
         # if in_mem != 31:
         #     check = False
-        time.sleep(0.5)
-        
-        num_sample_frame = 4
+        time.sleep(0.1)
+
+        num_sample_frame = 8
         selected_frames = []
         frames = []
         while not frame_queue.empty():
-            
+
             # evenly sample 4 frames from frame queue then render them and repeat it to 32 frames
             frame = frame_queue.get()
             frames.append(frame)
-            
-            
+
         if len(frames) > num_sample_frame:
-            selected_frames = random.sample(frames, num_sample_frame)
-    
+            indices = random.sample(range(len(frames)), num_sample_frame)
+            selected_frames = [frames[i] for i in sorted(indices)]
+
         for frame in selected_frames:
             start = time.time()
 
@@ -308,38 +322,47 @@ def process_and_send_frames(
             if extract is None:
                 continue
             # repeat the extracted 3dmm parameters to 32 frames
-            extract = torch.cat([extract.unsqueeze(0)]*(32//num_sample_frame), dim=1)
-            
-            speaker_face_memory.add(extract, p=32//num_sample_frame)    
+            extract = torch.cat(
+                [extract.unsqueeze(0)] * (32 // num_sample_frame), dim=1
+            )
+
+            speaker_face_memory.add(extract, p=32 // num_sample_frame)
             print(f"Preprocess frame time: {time.time()-start}")
-        
+
         face_3dmm_mem = speaker_face_memory.get()
-        
+
         start = time.time()
         sound = []
         while not audio_queue.empty():
             audio = audio_queue.get()
             sound_ = np.frombuffer(audio, dtype=np.float32)
             sound.append(sound_)
-        
-        sound = np.concatenate(sound)
-        
-        sound_mem_vector = wav2vec(sound_vector=sound, device="cuda")
-        sound_mem_vector = sound_mem_vector[:,-512:]
-        sound_mem_vector, sound_mask = pad(sound_mem_vector, 512, side="left", has_features=True)
 
+        sound = np.concatenate(sound)
+
+        sound_vector = wav2vec(sound_vector=sound, device="cuda")
+        mem_sound_vector = speaker_sound_memory.get()
+        
+        if sound_vector.shape[1] < 512:
+            mem_sound_vector = mem_sound_vector[:, sound_vector.shape[1]:]
+            mem_sound_vector = torch.cat([mem_sound_vector, sound_vector], dim=1)
+        else:
+            mem_sound_vector = sound_vector[:, -512:]
+        
+        speaker_sound_memory.memory = mem_sound_vector
+        
+        print(mem_sound_vector.shape)
         print(f"Preprocess sound time: {time.time()-start}")
-        
-        
+
         start = time.time()
         listernet_past_mem = listernet_past_memory.get()
         react_3dmm, pred_idx = predict(
-            face_3dmm_mem, sound_mem_vector, listernet_past_mem
+            face_3dmm_mem, mem_sound_vector, listernet_past_mem
         )
         print(f"Predict time: {time.time()-start}")
-        
-        listernet_past_memory.add(pred_idx[:,:32], p=32)
-        
+
+        listernet_past_memory.add(pred_idx[:, :32], p=32)
+
         start = time.time()
         rendered_frames = render_3dmm(react_3dmm[:, :32].detach())
         print(f"Render time: {time.time()-start}")
@@ -375,7 +398,7 @@ if __name__ == "__main__":
             speaker_sound_memory,
             listernet_past_memory,
             client_socket_1,
-            condition
+            condition,
         ),
     ).start()
 
