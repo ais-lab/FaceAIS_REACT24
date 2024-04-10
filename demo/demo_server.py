@@ -195,13 +195,15 @@ def preprocess_sound(sound):
 
     return sound
 
-cache_sp = None
+cache_lt = torch.zeros(1, 64, 58, device="cuda")
 
 def predict(
     speaker_face_memory,
     speaker_sound_memory,
     listernet_past_memory,
 ):
+    
+    global cache_lt
 
     face_3dmm_mem = speaker_face_memory
     sound_mem = speaker_sound_memory
@@ -223,8 +225,20 @@ def predict(
     sample_idx -= 2
 
     decode_3dmm, _ = face_tokenizer.model.get_3dmm_emotion(sample_idx)
+    
+    shape = decode_3dmm.shape
+    
+    cache_lt = cache_lt[:, 32:]
+    cache_lt = torch.cat([cache_lt, decode_3dmm], dim=1)
+    # smooth 3dmm
+    # 1, t, d 
+    
+    cumsum_vec = torch.cumsum(cache_lt, dim=1)
+    ma_vec = (cumsum_vec[:,4:] - cumsum_vec[:,:-4]) / 4
 
-    return decode_3dmm, sample_idx
+    # print(f"ma_vec: {ma_vec}")
+
+    return ma_vec[:,-32:].reshape(shape), sample_idx
 
 
 def render_3dmm(decode_3dmm):
