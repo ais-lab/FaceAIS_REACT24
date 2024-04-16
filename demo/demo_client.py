@@ -1,3 +1,4 @@
+import copy
 import pickle
 from queue import Queue
 import socket
@@ -45,8 +46,12 @@ while True:
 
 
 revc_frame = Queue()
+current_frame = None
 
 def capture_and_scale_image_from_webcam(fps, width, height):
+    
+    global current_frame
+    
     # Open the webcam
     cap = cv2.VideoCapture(0)
 
@@ -77,11 +82,17 @@ def capture_and_scale_image_from_webcam(fps, width, height):
         # If the frame was read correctly, then resize and yield it
         if ret:
             # Resize the frame
+            current_frame = copy.deepcopy(frame)
             frame = cv2.resize(frame, (width, height))
             frame = cv2.cvtColor(cv2.flip(frame, 1), cv2.COLOR_BGR2RGB)
 
             # send the frame to demo_server.py via socket
             send_frame((frame,audio_data), client_socket)
+            
+            # # show the frame
+            # cv2.imshow("Input Frame", frame)
+            # if cv2.waitKey(1) & 0xFF == ord("q"):
+            #     break
 
 computed_fps = 30
 def receive_and_add_frame_to_queue():
@@ -113,6 +124,8 @@ if __name__ == "__main__":
     while True:
         if not revc_frame.empty():
             cv2.imshow("Processed Frame", revc_frame.get())
+            
+            cv2.imshow("Input Frame", current_frame)
             print(f'computed_fps: {computed_fps}')
             time.sleep(1/computed_fps)
             

@@ -1,4 +1,5 @@
 import os
+import time
 
 import cv2
 import numpy as np
@@ -459,7 +460,10 @@ class Extractor3DMM:
         lm_loss_w = 3e3  # weight for landmark loss
         self.lms = np.zeros((66, 2), dtype=np.int64)
         
+        # 0.01 s per frame
         face_track = self.tracker.predict(frame)
+        
+        
         if len(face_track) == 0:
             return None
 
@@ -478,9 +482,10 @@ class Extractor3DMM:
             num_iters_rnf = 500
 
         else:
-            num_iters_rf = 15
-            num_iters_rnf = 15
-
+            num_iters_rf = 5
+            num_iters_rnf = 5
+        
+        # preprocess time cost 0.001s
         frame_b = cv2.copyMakeBorder(
             frame, self.border, self.border, self.border, self.border, cv2.BORDER_CONSTANT, value=0
         )
@@ -509,6 +514,7 @@ class Extractor3DMM:
             torch.from_numpy(align[np.newaxis, ...]).type(torch.float32).to(self.device)
         )
 
+        start = time.time()
         for i in range(num_iters_rf):
             self.rigid_optimizer.zero_grad()
 
@@ -532,7 +538,9 @@ class Extractor3DMM:
 
             with torch.no_grad():
                 self.faceverse.exp_tensor[self.faceverse.exp_tensor < 0] *= 0
-
+        # print("Rigid fitting time:", time.time() - start)
+        
+        start = time.time()
         for i in range(num_iters_rnf):
             self.nonrigid_optimizer.zero_grad()
 
@@ -571,7 +579,8 @@ class Extractor3DMM:
 
             with torch.no_grad():
                 self.faceverse.exp_tensor[self.faceverse.exp_tensor < 0] *= 0
-
+        # print("Nonrigid fitting time:", time.time() - start)
+        
         return self.create_3dmm_vector()
     
     def create_3dmm_vector(self):

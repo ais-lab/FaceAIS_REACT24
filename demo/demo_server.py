@@ -295,14 +295,16 @@ def process_and_send_frames(
 ):
     global in_mem
     # fps = 30
-
+    first = True
     while True:
         # check = True
         # if in_mem != 31:
         #     check = False
-        time.sleep(0.1)
+        if first:
+            time.sleep(0.1)
+            first = False
 
-        num_sample_frame = 8
+        num_sample_frame = 15
         selected_frames = []
         frames = []
         while not frame_queue.empty():
