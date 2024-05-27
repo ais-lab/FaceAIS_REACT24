@@ -52,8 +52,9 @@ And on the test set, it is as follows:
 |                              | FRC             | FRD    | FRDvs     | FRVar  | FRDiv  | FRRea   | FRSyn     |
 | Ours                         | 0.3190 |	82.0288 |	0.1165 |	0.0344 |	0.1162	| 34.6685 |	43.0918|
 
-### Output comparison with Learning2Listen's baseline:
-![Output comparison with Learning2Listen's baseline](https://github.com/ais-lab/FaceAIS_REACT24/blob/master/submit_videos/comparison_with_learning2listen.mp4)
+### Qualitative
+
+https://github.com/ais-lab/FaceAIS_REACT24/assets/60398059/c4983b5e-1d29-4fd8-826d-82a414a7c9c8
 
 ## Prequisites
 
