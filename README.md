@@ -1,3 +1,7 @@
+# :fire: This project won first place at the REACT2024 competition!
+![4 (1)](https://github.com/user-attachments/assets/2012669e-2d77-4e50-af8f-13f226a1b94b)
+
+----
 This is the submission for the REACT2024 competition from [AIS lab, Ritsumeikan University, Japan](http://www.aislab.org/). 
 
 ### Content List
