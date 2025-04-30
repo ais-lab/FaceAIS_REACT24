@@ -4,6 +4,7 @@
 ----
 This is the submission for the REACT2024 competition from [AIS lab, Ritsumeikan University, Japan](http://www.aislab.org/). 
 
+[Paper](https://ieeexplore.ieee.org/abstract/document/10581929)
 ### Content List
 
 - [Team Members](#team-members)
